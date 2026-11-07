@@ -39,22 +39,25 @@ public class RecipeInjector {
             return;
         }
 
-        // ดึง Recipe ทั้งหมดในปัจจุบันออกมาปรับแต่ง
-        List<RecipeHolder<?>> currentRecipes = new ArrayList<>(recipeManager.getRecipes());
+        // ใช้ Map เพื่อรับประกันว่าไม่มี Recipe ID ไหนซ้ำกัน 100% (ป้องกันบั๊กจาก NeoForge เรียกอีเวนต์ซ้ำ)
+        java.util.Map<ResourceLocation, RecipeHolder<?>> uniqueRecipes = new java.util.HashMap<>();
 
-        // 1. ดำเนินการลบ Recipe ตาม ResourceLocation ID
-        if(!toRemove.isEmpty()){
-            currentRecipes.removeIf(holder -> toRemove.contains(holder.id()));
+        // 1. นำ Recipe เดิมทั้งหมดของเกมใส่ลงไปใน Map (ยกเว้นตัวที่เราสั่งลบ)
+        for (RecipeHolder<?> holder : recipeManager.getRecipes()) {
+            if (!toRemove.contains(holder.id())) {
+                uniqueRecipes.put(holder.id(), holder);
+            }
         }
 
-        // 2. เพิ่ม Recipe ใหม่จากสคริปต์
-        if (!toAdd.isEmpty()) {
-            currentRecipes.addAll(toAdd);
+        // 2. นำ Recipe ใหม่ของเราใส่เข้าไป (ถ้าบังเอิญมี ID ซ้ำ มันจะเขียนทับตัวเก่าให้ทันที ปลอดภัยมาก)
+        for (RecipeHolder<?> holder : toAdd) {
+            uniqueRecipes.put(holder.id(), holder);
         }
 
-        // 3. แทนที่ Recipe Set ทั้งหมดลงใน RecipeManager
-        recipeManager.replaceRecipes(currentRecipes);
-        System.out.println("[CppSqript] Successfully injected/removed dynamic recipes!");
+        // 3. แทนที่ Recipe Set ทั้งหมดลงใน RecipeManager โดยดึงเฉพาะ Value กลับมา
+        recipeManager.replaceRecipes(uniqueRecipes.values());
+        
+        System.out.println("[CppSqript] Successfully injected " + toAdd.size() + " recipes without ID conflicts!");
     }
 
 }

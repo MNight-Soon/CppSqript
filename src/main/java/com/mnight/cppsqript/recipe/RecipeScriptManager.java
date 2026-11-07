@@ -42,7 +42,23 @@ public class RecipeScriptManager {
 			ingredients.add(Ingredient.of(inpuItem));
 		}
 
-		ResourceLocation newRecipeId = ResourceLocation.fromNamespaceAndPath("cppsqript", "shapeless_" + System.currentTimeMillis() + "_" + Math.random());
+
+		String idBase = resultItemId.replace(":","_");
+		String inputsHash = Integer.toHexString(Math.abs(inputItemIds.hashCode()));
+		ResourceLocation newRecipeId = ResourceLocation.fromNamespaceAndPath("cppsqript", "shapeless_" + idBase + "_" + inputsHash);
+
+		boolean alreadyExisits = recipeToAdd.stream()
+			.anyMatch(holder -> holder.id().equals(newRecipeId));
+		
+		if (!alreadyExisits) {
+			ShapelessRecipe recipe =new ShapelessRecipe(
+				"", 
+                    CraftingBookCategory.MISC, 
+                    resultStack, 
+                    ingredients);
+			recipeToAdd.add(new RecipeHolder<>(newRecipeId, recipe));
+		}
+
 		ShapelessRecipe recipe = new ShapelessRecipe(
 			"",
 			CraftingBookCategory.MISC,

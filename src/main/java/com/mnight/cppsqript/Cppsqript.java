@@ -20,20 +20,19 @@ public class Cppsqript {
         NeoForge.EVENT_BUS.register(this);
     }
 
-    @SubscribeEvent 
-    public void onAddReloadListeners(AddReloadListenerEvent event){
-        loadCppScripts();
+    @SubscribeEvent
+    public void onAddReloadListeners(AddReloadListenerEvent event) {
+        loadMockCppScripts();
     }
 
-    private void loadCppScripts(){
-
-        //testing
+    private void loadMockCppScripts() {
         RecipeScriptManager.clear();
-
+        
+        // ทดสอบ Mock สคริปต์ C++:
+        // 1. ลบ Recipe ดาบเพชร (minecraft:diamond_sword)
         RecipeScriptManager.removeRecipe("minecraft:diamond_sword");
-
-        RecipeScriptManager.addShapelessRecipe("minecraft:diamond", 1, List.of("minecraft:dirt", "minecraft:dirt"));
-
-        System.out.println("[CppSqript] Loaded recipes queue successfully!");
+        
+        // 2. คราฟต์ Diamond จาก Dirt 2 ก้อน
+        RecipeScriptManager.addShapelessRecipe("minecraft:diamond", 1, List.of("minecraft:dirt"));
     }
 }
