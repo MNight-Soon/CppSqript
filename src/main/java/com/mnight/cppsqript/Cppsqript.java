@@ -1,38 +1,39 @@
 package com.mnight.cppsqript;
 
-import com.mojang.logging.LogUtils;
+import com.mnight.cppsqript.recipe.RecipeScriptManager;
+
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import org.slf4j.Logger;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.AddReloadListenerEvent;
+
+import java.util.List;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(Cppsqript.MOD_ID)
 public class Cppsqript {
     // Define mod id in a common place for everything to reference
     public static final String MOD_ID = "cppsqript";
-    // Directly reference a slf4j logger
-    private static final Logger LOGGER = LogUtils.getLogger();
-    // Create a Deferred Register to hold Blocks which will all be registered under the "cppsqript" namespace
-    private final CppBridge cppBridge;
-    // The constructor for the mod class is the first code that is run when your mod is loaded.
-    // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
+
     public Cppsqript(IEventBus modEventBus) {
-        LOGGER.info("Initializing CppScript library");
-
-        this.cppBridge = new CppBridge();
-
-        modEventBus.addListener(this::commonSetup);
+        NeoForge.EVENT_BUS.register(this);
     }
 
-    private void commonSetup(final FMLCommonSetupEvent event) {
-        String osName = System.getProperty("os.name").toLowerCase();
-        String libName = osName.contains("win") ? "script.dll" : "libsqript.so";
+    @SubscribeEvent 
+    public void onAddReloadListeners(AddReloadListenerEvent event){
+        loadCppScripts();
+    }
 
-        LOGGER.info("Loading C++ library: {}", libName);
+    private void loadCppScripts(){
 
-        if (cppBridge.loadLibrary(libName)) {
-            cppBridge.executeServerInit();
-        }
+        //testing
+        RecipeScriptManager.clear();
+
+        RecipeScriptManager.removeRecipe("minecraft:diamond_sword");
+
+        RecipeScriptManager.addShapelessRecipe("minecraft:diamond", 1, List.of("minecraft:dirt", "minecraft:dirt"));
+
+        System.out.println("[CppSqript] Loaded recipes queue successfully!");
     }
 }
