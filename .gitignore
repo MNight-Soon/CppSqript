@@ -4,3 +4,8 @@
 /.vscode/
 /run/
 /bin/
+/.eclipse/
+
+.antlr/
+*.interp
+*.tokens
