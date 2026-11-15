@@ -12,7 +12,6 @@ import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.List;
 
 // The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(Cppsqript.MOD_ID)
@@ -46,12 +45,7 @@ public class Cppsqript {
         File scriptDir = new File("config/cppsqript");
         if (!scriptDir.exists()) {
             scriptDir.mkdirs();
-        }
-
-        File testScript = new File(scriptDir, "recipes.cpp");
-        
-        // หากยังไม่มีไฟล์ recipes.cpp ให้สร้างไฟล์ตัวอย่างเริ่มต้นให้อัตโนมัติ
-        if (!testScript.exists()) {
+            File testScript = new File(scriptDir, "recipes.cpp");
             try {
                 String defaultScript = """
                         // ตัวอย่างสคริปต์ CppSqript
@@ -67,6 +61,8 @@ public class Cppsqript {
         }
 
         // โหลดไฟล์สคริปต์มาประมวลผล
-        CppScriptLoader.loadScriptFile(testScript);
+        int count = CppScriptLoader.loadAllScripts(scriptDir.toPath());
+        System.out.println("[CppSqript] Finished loading " + count + " C++ script file(s).");
+
     }
 }

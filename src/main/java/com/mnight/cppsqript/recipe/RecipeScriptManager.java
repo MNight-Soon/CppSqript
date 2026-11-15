@@ -2,7 +2,9 @@ package com.mnight.cppsqript.recipe;
 
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
@@ -24,6 +26,19 @@ public class RecipeScriptManager {
 	private static final Set<ResourceLocation> recipeToRemove = new HashSet<>();
 	private static final List<RecipeHolder<?>> recipeToAdd = new ArrayList<>();
 
+	private static Ingredient parseIngredient(String input){
+		if (input.startsWith("#")) {
+			String tagName = input.substring(1);
+			ResourceLocation tagLoc = ResourceLocation.parse(tagName);
+			TagKey<Item> itemTag = TagKey.create(Registries.ITEM, tagLoc);
+			return Ingredient.of(itemTag);
+		} else {
+			ResourceLocation itemLoc = ResourceLocation.parse(input);
+			Item item = BuiltInRegistries.ITEM.get(itemLoc);
+			return Ingredient.of(item);
+		}
+	}
+
 	// Clear สตรีมข้อมูลสคริปต์เก่าก่อน Reload
 	public static void clear(){
 		recipeToRemove.clear();
@@ -43,8 +58,7 @@ public class RecipeScriptManager {
 
 		NonNullList<Ingredient> ingredients = NonNullList.create();
 		for (String inputId : inputItemIds){
-			Item inpuItem = BuiltInRegistries.ITEM.get(ResourceLocation.parse(inputId));
-			ingredients.add(Ingredient.of(inpuItem));
+			ingredients.add(parseIngredient(inputId));
 		}
 
 
@@ -81,8 +95,7 @@ public class RecipeScriptManager {
 
 		Map<Character, Ingredient> ingredientMap = new HashMap<>();
 		for (Map.Entry<Character, String> entry : keyMap.entrySet()){
-			Item ingredientItem = BuiltInRegistries.ITEM.get(ResourceLocation.parse(entry.getValue()));
-			ingredientMap.put(entry.getKey(), Ingredient.of(ingredientItem));
+			ingredientMap.put(entry.getKey(), parseIngredient(entry.getValue()));
 		}
 
 		ShapedRecipePattern pattern = ShapedRecipePattern.of(ingredientMap, patternRows);
