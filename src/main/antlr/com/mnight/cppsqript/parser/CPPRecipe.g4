@@ -1,29 +1,57 @@
 grammar CPPRecipe;
 
 // --- PARSER RULES ---
-script: statement* EOF ;
+script : topLevelElement* EOF ;
 
-statement
-    : removeStatement ';'
-    | shapelessStatement ';'
-    | shapedStatement ';'
-    | comment
+topLevelElement
+    : functionDef
+    | statement
     ;
 
+// รองรับโครงสร้างฟังก์ชัน เช่น void register_recipes(ServerEvents::Recipes& event) { ... }
+functionDef
+    : 'void' ID '(' paramList? ')' '{' statement* '}'
+    ;
+
+paramList
+    : param (',' param)*
+    ;
+
+param
+    : typeName '&'? ID
+    ;
+
+typeName
+    : ('const')? ID ('::' ID)* ('*')?
+    ;
+
+statement
+    : varDecl ';'
+    | removeStatement ';'
+    | shapelessStatement ';'
+    | shapedStatement ';'
+    ;
+
+// รองรับการประกาศตัวแปร เช่น auto sword = "minecraft:diamond_sword"; หรือ int amt = 4;
+varDecl
+    : typeName ID '=' expr ';' ?
+    ;
+
+// รองรับการเรียกแบบ event.remove(...) หรือ remove(...)
 removeStatement
-    : 'remove' '(' STRING ')'
+    : (ID '.')? 'remove' '(' expr ')'
     ;
 
 shapelessStatement
-    : 'shapeless' '(' STRING ',' INT ',' stringList ')'
+    : (ID '.')? 'shapeless' '(' expr ',' expr ',' exprList ')'
     ;
 
 shapedStatement
-    : 'shaped' '(' STRING ',' INT ',' stringList ',' charMap ')'
+    : (ID '.')? 'shaped' '(' expr ',' expr ',' exprList ',' charMap ')'
     ;
 
-stringList
-    : '{' STRING (',' STRING)* '}'
+exprList
+    : '{' expr (',' expr)* '}'
     ;
 
 charMap
@@ -31,16 +59,23 @@ charMap
     ;
 
 charPair
-    : '{' CHAR ',' STRING '}'
+    : '{' CHAR ',' expr '}'
     ;
 
-comment
-    : COMMENT
+// Expression สามารถเป็นค่าตรงๆ หรือชื่อตัวแปร (ID) ก็ได้
+expr
+    : STRING
+    | INT
+    | ID
     ;
 
 // --- LEXER RULES ---
-CHAR : '\'' ~['\r\n] '\'';
-STRING : '"' ('\\"' | ~["\r\n])* '"' ;
+PREPROCESSOR : '#' ~[\r\n]* -> skip ;
+BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
+LINE_COMMENT : '//' ~[\r\n]* -> skip ;
+
+CHAR : '\'' ~['\r\n] '\'' ;
+STRING : '"' ( '\\"' | ~["\r\n] )* '"' ;
 INT : [0-9]+ ;
-COMMENT : '//' ~[\r\n]* ;
+ID : [a-zA-Z_][a-zA-Z0-9_]* ;
 WS : [ \t\r\n]+ -> skip ;
