@@ -1,38 +1,52 @@
 package com.mnight.cppsqript.parser;
 
 import com.mnight.cppsqript.recipe.RecipeScriptManager;
-import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
+
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+
+import org.antlr.v4.runtime.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Stream;
 
 public class CppScriptLoader {
 
-    public static void loadScriptFile(File scriptFile) {
+    public static void loadScriptFile(File scriptFile, String relativeFilePath) {
         try {
             String code = Files.readString(scriptFile.toPath());
             CharStream input = CharStreams.fromString(code);
+            
             CPPRecipeLexer lexer = new CPPRecipeLexer(input);
             CommonTokenStream tokens = new CommonTokenStream(lexer);
             CPPRecipeParser parser = new CPPRecipeParser(tokens);
 
+            BaseErrorListener customErrorListener = new BaseErrorListener() {
+                @Override
+                public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol,
+                                        int line, int charPositionInLine, String msg, RecognitionException e) {
+                    ScriptErrorTracker.reportError(relativeFilePath, line, charPositionInLine, msg);
+                }
+            };
+
+            lexer.removeErrorListeners();
+            lexer.addErrorListener(customErrorListener);
+            parser.removeErrorListeners();
+            parser.addErrorListener(customErrorListener);
+
             CPPRecipeParser.ScriptContext tree = parser.script();
-            Visitor visitor = new Visitor();
+
+            Visitor visitor = new Visitor(relativeFilePath);
             visitor.visit(tree);
 
         } catch (IOException e) {
-            System.err.println("[CppSqript] Failed to load script: " + scriptFile.getName());
-            e.printStackTrace();
+            ScriptErrorTracker.reportRuntimeError(relativeFilePath, 0, "Failed to read file: " + e.getMessage());
         }
     }
 
@@ -50,8 +64,9 @@ public class CppScriptLoader {
                     .toList();
 
             for (Path filePath : cppFiles) {
-                System.out.println("[CppSqript] Loading script: " + rootDirectory.relativize(filePath));
-                loadScriptFile(filePath.toFile());
+                String relativePath = rootDirectory.relativize(filePath).toString().replace("\\", "/");
+                System.out.println("[CppSqript] Loading script: " + relativePath);
+                loadScriptFile(filePath.toFile(), relativePath);
                 loadedCount++;
             }
         } catch (IOException e) {
@@ -63,61 +78,80 @@ public class CppScriptLoader {
     }
 
     private static class Visitor extends CPPRecipeBaseVisitor<Void> {
-        // เก็บตัวแปรที่ประกาศในไฟล์สคริปต์ (Symbol Table)
+        private final String relativeFilePath;
         private final Map<String, Object> variables = new HashMap<>();
+
+        public Visitor(String relativeFilePath) {
+            this.relativeFilePath = relativeFilePath;
+        }
 
         @Override
         public Void visitVarDecl(CPPRecipeParser.VarDeclContext ctx) {
-            String varName = ctx.ID().getText();
-            Object value = evaluateExpr(ctx.expr());
-            variables.put(varName, value);
+            try {
+                String varName = ctx.ID().getText();
+                Object value = evaluateExpr(ctx.expr());
+                variables.put(varName, value);
+            } catch (Exception e) {
+                ScriptErrorTracker.reportRuntimeError(relativeFilePath, ctx.getStart().getLine(), e.getMessage());
+            }
             return null;
         }
 
         @Override
         public Void visitRemoveStatement(CPPRecipeParser.RemoveStatementContext ctx) {
-            String itemId = resolveString(ctx.expr());
-            RecipeScriptManager.removeRecipe(itemId);
+            try {
+                String itemId = resolveString(ctx.expr());
+                RecipeScriptManager.removeRecipe(itemId);
+            } catch (Exception e) {
+                ScriptErrorTracker.reportRuntimeError(relativeFilePath, ctx.getStart().getLine(), e.getMessage());
+            }
             return null;
         }
 
         @Override
         public Void visitShapelessStatement(CPPRecipeParser.ShapelessStatementContext ctx) {
-            String resultId = resolveString(ctx.expr(0));
-            int count = resolveInt(ctx.expr(1));
+            try {
+                String resultId = resolveString(ctx.expr(0));
+                int count = resolveInt(ctx.expr(1));
 
-            List<String> inputs = new ArrayList<>();
-            for (var exprNode : ctx.exprList().expr()) {
-                inputs.add(resolveString(exprNode));
+                List<String> inputs = new ArrayList<>();
+                for (var exprNode : ctx.exprList().expr()) {
+                    inputs.add(resolveString(exprNode));
+                }
+
+                RecipeScriptManager.addShapelessRecipe(resultId, count, inputs);
+            } catch (Exception e) {
+                ScriptErrorTracker.reportRuntimeError(relativeFilePath, ctx.getStart().getLine(), e.getMessage());
             }
-
-            RecipeScriptManager.addShapelessRecipe(resultId, count, inputs);
             return null;
         }
 
         @Override
         public Void visitShapedStatement(CPPRecipeParser.ShapedStatementContext ctx) {
-            String resultId = resolveString(ctx.expr(0));
-            int count = resolveInt(ctx.expr(1));
+            try {
+                String resultId = resolveString(ctx.expr(0));
+                int count = resolveInt(ctx.expr(1));
 
-            List<String> patternRows = new ArrayList<>();
-            for (var exprNode : ctx.exprList().expr()) {
-                patternRows.add(resolveString(exprNode));
+                List<String> patternRows = new ArrayList<>();
+                for (var exprNode : ctx.exprList().expr()) {
+                    patternRows.add(resolveString(exprNode));
+                }
+
+                Map<Character, String> keyMap = new HashMap<>();
+                for (var pairCtx : ctx.charMap().charPair()) {
+                    String rawChar = pairCtx.CHAR().getText();
+                    char symbol = rawChar.charAt(1);
+                    String itemId = resolveString(pairCtx.expr());
+                    keyMap.put(symbol, itemId);
+                }
+
+                RecipeScriptManager.addShapedRecipe(resultId, count, patternRows, keyMap);
+            } catch (Exception e) {
+                ScriptErrorTracker.reportRuntimeError(relativeFilePath, ctx.getStart().getLine(), e.getMessage());
             }
-
-            Map<Character, String> keyMap = new HashMap<>();
-            for (var pairCtx : ctx.charMap().charPair()) {
-                String rawChar = pairCtx.CHAR().getText();
-                char symbol = rawChar.charAt(1);
-                String itemId = resolveString(pairCtx.expr());
-                keyMap.put(symbol, itemId);
-            }
-
-            RecipeScriptManager.addShapedRecipe(resultId, count, patternRows, keyMap);
             return null;
         }
 
-        // ประเมินค่า Expression (แปลง STRING, INT หรือดึงค่าจากตัวแปร ID)
         private Object evaluateExpr(CPPRecipeParser.ExprContext ctx) {
             if (ctx.STRING() != null) {
                 return stripQuotes(ctx.STRING().getText());
@@ -126,7 +160,7 @@ public class CppScriptLoader {
             } else if (ctx.ID() != null) {
                 String varName = ctx.ID().getText();
                 if (!variables.containsKey(varName)) {
-                    throw new RuntimeException("[CppSqript] Undefined variable: " + varName);
+                    throw new RuntimeException("Undefined variable '" + varName + "'");
                 }
                 return variables.get(varName);
             }
@@ -134,8 +168,7 @@ public class CppScriptLoader {
         }
 
         private String resolveString(CPPRecipeParser.ExprContext ctx) {
-            Object val = evaluateExpr(ctx);
-            return String.valueOf(val);
+            return String.valueOf(evaluateExpr(ctx));
         }
 
         private int resolveInt(CPPRecipeParser.ExprContext ctx) {
@@ -143,12 +176,35 @@ public class CppScriptLoader {
             if (val instanceof Integer i) {
                 return i;
             }
-            return Integer.parseInt(String.valueOf(val));
+            try {
+                return Integer.parseInt(String.valueOf(val));
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Value '" + val + "' is not a valid integer (Expected INT)");
+            }
         }
 
         private String stripQuotes(String raw) {
             String unquoted = raw.substring(1, raw.length() - 1);
             return unquoted.replace("\\\"", "\"");
+        }
+    }
+
+    public static Item validateAndGetItem(String itemId, String context){
+        try {
+            ResourceLocation loc = ResourceLocation.parse(itemId);
+            if (!BuiltInRegistries.ITEM.containsKey(loc)) {
+                ScriptErrorTracker.reportWarning(context, "Unknown item ID '" + itemId + "' (item does not exist in registry).");
+                return null;
+            }
+            Item item = BuiltInRegistries.ITEM.get(loc);
+            if (item == Items.AIR) {
+                ScriptErrorTracker.reportWarning(context, "Item '" + itemId + "' resolved to minecraft:air.");
+                return null;
+            }
+            return item;
+        } catch (Exception e) {
+            ScriptErrorTracker.reportWarning(context, "Invalid ResourceLocation format '" + itemId + "': " + e.getMessage());
+            return null;
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.mnight.cppsqript;
 
 import com.mnight.cppsqript.parser.CppScriptLoader;
+import com.mnight.cppsqript.parser.ScriptErrorTracker;
 import com.mnight.cppsqript.recipe.RecipeScriptManager;
 
 import net.neoforged.bus.api.IEventBus;
@@ -30,8 +31,9 @@ public class Cppsqript {
 
     private void loadCppScripts() {
         RecipeScriptManager.clear();
+        ScriptErrorTracker.clear();
 
-        File scriptDir = new File("config/cppsqript");
+        File scriptDir = new File("cppsqript");
         if (!scriptDir.exists()) {
             scriptDir.mkdirs();
             createDefaultHeader(scriptDir);

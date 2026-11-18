@@ -1,10 +1,12 @@
 package com.mnight.cppsqript.recipe;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.mnight.cppsqript.parser.ScriptErrorTracker;
+
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -21,6 +23,14 @@ public class RecipeInjector {
     public static void onDatapackSync(OnDatapackSyncEvent event){
         RecipeManager recipeManager = event.getPlayerList().getServer().getRecipeManager();
         injectRecipes(recipeManager);
+
+        if (event.getPlayer() != null) {
+            ScriptErrorTracker.broadcastToPlayer(event.getPlayer());
+        } else {
+            for (ServerPlayer player : event.getPlayerList().getPlayers()){
+                ScriptErrorTracker.broadcastToPlayer(player);
+            }
+        }
     }
 
     /**
