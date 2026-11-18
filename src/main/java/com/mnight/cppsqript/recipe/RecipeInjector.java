@@ -43,7 +43,7 @@ public class RecipeInjector {
 
     private static void injectRecipes(RecipeManager recipeManager){
         Set<ResourceLocation> toRemove = RecipeScriptManager.getRecipesToRemove();
-        List<RecipeHolder<?>> toAdd = RecipeScriptManager.getRecipetoAdd();
+        List<RecipeHolder<?>> toAdd = RecipeScriptManager.getRecipesToAdd();
 
         if(toRemove.isEmpty() && toAdd.isEmpty()){
             return;

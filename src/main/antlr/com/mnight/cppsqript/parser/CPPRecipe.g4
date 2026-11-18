@@ -36,7 +36,8 @@ argList
 
 // รองรับค่าหลากหลายรูปแบบเพื่อให้ Addon ดึงไปใช้ได้อิสระ
 expr
-    : STRING                                # StringExpr
+    : RAW_STRING                            # RawStringExpr
+    | STRING                                # StringExpr
     | INT                                   # IntExpr
     | FLOAT                                 # FloatExpr
     | CHAR                                  # CharExpr
@@ -50,6 +51,7 @@ PREPROCESSOR : '#' ~[\r\n]* -> skip ;
 BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
 LINE_COMMENT : '//' ~[\r\n]* -> skip ;
 
+RAW_STRING : 'R"(' .*? ')"' ;
 CHAR : '\'' ~['\r\n] '\'' ;
 STRING : '"' ( '\\"' | ~["\r\n] )* '"' ;
 FLOAT : [0-9]+ '.' [0-9]+ 'f'? ;

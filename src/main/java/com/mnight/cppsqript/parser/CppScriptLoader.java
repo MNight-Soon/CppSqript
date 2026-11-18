@@ -183,6 +183,13 @@ public class CppScriptLoader {
             return Map.entry(key, value);
         }
 
+        @Override
+        public Object visitRawStringExpr(CPPRecipeParser.RawStringExprContext ctx) {
+            String raw = ctx.RAW_STRING().getText();
+            // ตัด 'R"(' (3 ตัวแรก) และ ')"' (2 ตัวท้าย) ออก
+            return raw.substring(3, raw.length() - 2);
+        }
+
         private String stripQuotes(String raw) {
             String unquoted = raw.substring(1, raw.length() - 1);
             return unquoted.replace("\\\"", "\"");

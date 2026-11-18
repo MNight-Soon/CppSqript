@@ -50,5 +50,80 @@ public class BuiltInCommands {
                 RecipeScriptManager.addShapedRecipe(resultId, count, pattern, keyMap);
             }
         );
+
+        // 4. Smelting (เวลาเผามาตรฐานคือ 200 ticks = 10 วินาที)
+        CppSqriptAPI.registerCommand(
+            "smelting",
+            "void smelting(const char* result, const char* input, float xp = 0.1f, int cookingTime = 200)",
+            args -> {
+                String result = String.valueOf(args.get(0));
+                String input = String.valueOf(args.get(1));
+                float xp = args.size() > 2 ? ((Number) args.get(2)).floatValue() : 0.1f;
+                int time = args.size() > 3 ? ((Number) args.get(3)).intValue() : 200;
+                RecipeScriptManager.addSmelting(result, input, xp, time);
+            }
+        );
+
+        // 5. Blasting (เวลาเผามาตรฐานคือ 100 ticks = 5 วินาที)
+        CppSqriptAPI.registerCommand(
+            "blasting",
+            "void blasting(const char* result, const char* input, float xp = 0.1f, int cookingTime = 100)",
+            args -> {
+                String result = String.valueOf(args.get(0));
+                String input = String.valueOf(args.get(1));
+                float xp = args.size() > 2 ? ((Number) args.get(2)).floatValue() : 0.1f;
+                int time = args.size() > 3 ? ((Number) args.get(3)).intValue() : 100;
+                RecipeScriptManager.addBlasting(result, input, xp, time);
+            }
+        );
+
+        // 6. Smoking (เวลาเผามาตรฐานคือ 100 ticks = 5 วินาที)
+        CppSqriptAPI.registerCommand(
+            "smoking",
+            "void smoking(const char* result, const char* input, float xp = 0.1f, int cookingTime = 100)",
+            args -> {
+                String result = String.valueOf(args.get(0));
+                String input = String.valueOf(args.get(1));
+                float xp = args.size() > 2 ? ((Number) args.get(2)).floatValue() : 0.1f;
+                int time = args.size() > 3 ? ((Number) args.get(3)).intValue() : 100;
+                RecipeScriptManager.addSmoking(result, input, xp, time);
+            }
+        );
+
+        // 7. Campfire Cooking (เวลาเผามาตรฐานคือ 600 ticks = 30 วินาที)
+        CppSqriptAPI.registerCommand(
+            "campfire",
+            "void campfire(const char* result, const char* input, float xp = 0.1f, int cookingTime = 600)",
+            args -> {
+                String result = String.valueOf(args.get(0));
+                String input = String.valueOf(args.get(1));
+                float xp = args.size() > 2 ? ((Number) args.get(2)).floatValue() : 0.1f;
+                int time = args.size() > 3 ? ((Number) args.get(3)).intValue() : 600;
+                RecipeScriptManager.addCampfire(result, input, xp, time);
+            }
+        );
+
+        // 8. Stonecutting
+        CppSqriptAPI.registerCommand(
+            "stonecutting",
+            "void stonecutting(const char* result, int count, const char* input)",
+            args -> {
+                String result = String.valueOf(args.get(0));
+                int count = ((Number) args.get(1)).intValue();
+                String input = String.valueOf(args.get(2));
+                RecipeScriptManager.addStonecutting(result, count, input);
+            }
+        );
+
+        // 9. Custom JSON Recipe (รองรับทุกเครื่องจักรและทุก Mod)
+        CppSqriptAPI.registerCommand(
+            "custom",
+            "void custom(const char* idName, const char* jsonRecipe)",
+            args -> {
+                String idName = String.valueOf(args.get(0));
+                String json = String.valueOf(args.get(1));
+                RecipeScriptManager.addCustomJson(idName, json);
+            }
+        );
     }
 }
