@@ -1,12 +1,7 @@
 package com.mnight.cppsqript.parser;
 
-import com.mnight.cppsqript.recipe.RecipeScriptManager;
-
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.Items;
-
+import com.mnight.cppsqript.api.CppSqriptAPI;
+import com.mnight.cppsqript.api.ScriptCommandHandler;
 import org.antlr.v4.runtime.*;
 
 import java.io.File;
@@ -22,7 +17,7 @@ public class CppScriptLoader {
         try {
             String code = Files.readString(scriptFile.toPath());
             CharStream input = CharStreams.fromString(code);
-            
+
             CPPRecipeLexer lexer = new CPPRecipeLexer(input);
             CommonTokenStream tokens = new CommonTokenStream(lexer);
             CPPRecipeParser parser = new CPPRecipeParser(tokens);
@@ -77,7 +72,7 @@ public class CppScriptLoader {
         return loadedCount;
     }
 
-    private static class Visitor extends CPPRecipeBaseVisitor<Void> {
+    private static class Visitor extends CPPRecipeBaseVisitor<Object> {
         private final String relativeFilePath;
         private final Map<String, Object> variables = new HashMap<>();
 
@@ -86,10 +81,10 @@ public class CppScriptLoader {
         }
 
         @Override
-        public Void visitVarDecl(CPPRecipeParser.VarDeclContext ctx) {
+        public Object visitVarDecl(CPPRecipeParser.VarDeclContext ctx) {
             try {
                 String varName = ctx.ID().getText();
-                Object value = evaluateExpr(ctx.expr());
+                Object value = visit(ctx.expr());
                 variables.put(varName, value);
             } catch (Exception e) {
                 ScriptErrorTracker.reportRuntimeError(relativeFilePath, ctx.getStart().getLine(), e.getMessage());
@@ -98,113 +93,99 @@ public class CppScriptLoader {
         }
 
         @Override
-        public Void visitRemoveStatement(CPPRecipeParser.RemoveStatementContext ctx) {
+        public Object visitMethodCall(CPPRecipeParser.MethodCallContext ctx) {
+            int line = ctx.getStart().getLine();
             try {
-                String itemId = resolveString(ctx.expr());
-                RecipeScriptManager.removeRecipe(itemId);
+                // If called as "event.command(...)", ID(0) is "event" and ID(1) is "command".
+                // If called globally as "command(...)", ID(0) is "command".
+                List<org.antlr.v4.runtime.tree.TerminalNode> ids = ctx.ID();
+                String commandName = (ids.size() == 2) ? ids.get(1).getText() : ids.get(0).getText();
+
+                ScriptCommandHandler handler = CppSqriptAPI.getCommand(commandName);
+                if (handler == null) {
+                    ScriptErrorTracker.reportRuntimeError(relativeFilePath, line,
+                            "Unknown command '" + commandName + "'. Check if a required addon is missing.");
+                    return null;
+                }
+
+                // Evaluate all arguments into Java Objects
+                List<Object> evaluatedArgs = new ArrayList<>();
+                if (ctx.argList() != null) {
+                    for (CPPRecipeParser.ExprContext exprCtx : ctx.argList().expr()) {
+                        evaluatedArgs.add(visit(exprCtx));
+                    }
+                }
+
+                // Execute the registered command handler (built-in or addon)
+                handler.execute(evaluatedArgs);
+
+            } catch (IndexOutOfBoundsException e) {
+                ScriptErrorTracker.reportRuntimeError(relativeFilePath, line,
+                        "Insufficient arguments provided for command call.");
+            } catch (ClassCastException e) {
+                ScriptErrorTracker.reportRuntimeError(relativeFilePath, line,
+                        "Invalid argument type: " + e.getMessage());
             } catch (Exception e) {
-                ScriptErrorTracker.reportRuntimeError(relativeFilePath, ctx.getStart().getLine(), e.getMessage());
+                ScriptErrorTracker.reportRuntimeError(relativeFilePath, line,
+                        "Command execution failed: " + e.getMessage());
             }
             return null;
+        }
+
+        // --- Expression Evaluators (Labeled Alternatives from CPPRecipe.g4) ---
+
+        @Override
+        public Object visitStringExpr(CPPRecipeParser.StringExprContext ctx) {
+            return stripQuotes(ctx.STRING().getText());
         }
 
         @Override
-        public Void visitShapelessStatement(CPPRecipeParser.ShapelessStatementContext ctx) {
-            try {
-                String resultId = resolveString(ctx.expr(0));
-                int count = resolveInt(ctx.expr(1));
-
-                List<String> inputs = new ArrayList<>();
-                for (var exprNode : ctx.exprList().expr()) {
-                    inputs.add(resolveString(exprNode));
-                }
-
-                RecipeScriptManager.addShapelessRecipe(resultId, count, inputs);
-            } catch (Exception e) {
-                ScriptErrorTracker.reportRuntimeError(relativeFilePath, ctx.getStart().getLine(), e.getMessage());
-            }
-            return null;
+        public Object visitIntExpr(CPPRecipeParser.IntExprContext ctx) {
+            return Integer.parseInt(ctx.INT().getText());
         }
 
         @Override
-        public Void visitShapedStatement(CPPRecipeParser.ShapedStatementContext ctx) {
-            try {
-                String resultId = resolveString(ctx.expr(0));
-                int count = resolveInt(ctx.expr(1));
-
-                List<String> patternRows = new ArrayList<>();
-                for (var exprNode : ctx.exprList().expr()) {
-                    patternRows.add(resolveString(exprNode));
-                }
-
-                Map<Character, String> keyMap = new HashMap<>();
-                for (var pairCtx : ctx.charMap().charPair()) {
-                    String rawChar = pairCtx.CHAR().getText();
-                    char symbol = rawChar.charAt(1);
-                    String itemId = resolveString(pairCtx.expr());
-                    keyMap.put(symbol, itemId);
-                }
-
-                RecipeScriptManager.addShapedRecipe(resultId, count, patternRows, keyMap);
-            } catch (Exception e) {
-                ScriptErrorTracker.reportRuntimeError(relativeFilePath, ctx.getStart().getLine(), e.getMessage());
+        public Object visitFloatExpr(CPPRecipeParser.FloatExprContext ctx) {
+            String raw = ctx.FLOAT().getText();
+            if (raw.endsWith("f") || raw.endsWith("F")) {
+                raw = raw.substring(0, raw.length() - 1);
             }
-            return null;
+            return Float.parseFloat(raw);
         }
 
-        private Object evaluateExpr(CPPRecipeParser.ExprContext ctx) {
-            if (ctx.STRING() != null) {
-                return stripQuotes(ctx.STRING().getText());
-            } else if (ctx.INT() != null) {
-                return Integer.parseInt(ctx.INT().getText());
-            } else if (ctx.ID() != null) {
-                String varName = ctx.ID().getText();
-                if (!variables.containsKey(varName)) {
-                    throw new RuntimeException("Undefined variable '" + varName + "'");
-                }
-                return variables.get(varName);
-            }
-            return null;
+        @Override
+        public Object visitCharExpr(CPPRecipeParser.CharExprContext ctx) {
+            return ctx.CHAR().getText().charAt(1);
         }
 
-        private String resolveString(CPPRecipeParser.ExprContext ctx) {
-            return String.valueOf(evaluateExpr(ctx));
+        @Override
+        public Object visitVarExpr(CPPRecipeParser.VarExprContext ctx) {
+            String varName = ctx.ID().getText();
+            if (!variables.containsKey(varName)) {
+                throw new RuntimeException("Undefined variable '" + varName + "'");
+            }
+            return variables.get(varName);
         }
 
-        private int resolveInt(CPPRecipeParser.ExprContext ctx) {
-            Object val = evaluateExpr(ctx);
-            if (val instanceof Integer i) {
-                return i;
+        @Override
+        public Object visitArrayExpr(CPPRecipeParser.ArrayExprContext ctx) {
+            List<Object> list = new ArrayList<>();
+            for (CPPRecipeParser.ExprContext exprCtx : ctx.expr()) {
+                list.add(visit(exprCtx));
             }
-            try {
-                return Integer.parseInt(String.valueOf(val));
-            } catch (NumberFormatException e) {
-                throw new RuntimeException("Value '" + val + "' is not a valid integer (Expected INT)");
-            }
+            return list;
+        }
+
+        @Override
+        public Object visitPairExpr(CPPRecipeParser.PairExprContext ctx) {
+            char key = ctx.CHAR().getText().charAt(1);
+            Object value = visit(ctx.expr());
+            return Map.entry(key, value);
         }
 
         private String stripQuotes(String raw) {
             String unquoted = raw.substring(1, raw.length() - 1);
             return unquoted.replace("\\\"", "\"");
-        }
-    }
-
-    public static Item validateAndGetItem(String itemId, String context){
-        try {
-            ResourceLocation loc = ResourceLocation.parse(itemId);
-            if (!BuiltInRegistries.ITEM.containsKey(loc)) {
-                ScriptErrorTracker.reportWarning(context, "Unknown item ID '" + itemId + "' (item does not exist in registry).");
-                return null;
-            }
-            Item item = BuiltInRegistries.ITEM.get(loc);
-            if (item == Items.AIR) {
-                ScriptErrorTracker.reportWarning(context, "Item '" + itemId + "' resolved to minecraft:air.");
-                return null;
-            }
-            return item;
-        } catch (Exception e) {
-            ScriptErrorTracker.reportWarning(context, "Invalid ResourceLocation format '" + itemId + "': " + e.getMessage());
-            return null;
         }
     }
 }
